@@ -1,6 +1,16 @@
-﻿using Newtonsoft.Json;
-using System.Diagnostics;
-using System.Net.Http;
+﻿/*
+3)	Необходимо написать приложение на C# (вид не важен, консольное, или как хочется), 
+которое будет выполнять авторизацию и скачивать целиком всю номенклатуру по любому из доступных демонстрационной учетной записи департаментов (аптек)
+
+метод - /Goods/{depId} (/User/departments), сваггер - http://f3bus.test.pharmadata.ru/swagger/index.html
+Сохранять результат можно куда угодно (например, в файлы на диск). 
+
+
+PS: исходя из задачи, реализация простейшая.
+
+*/
+
+using Newtonsoft.Json;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
@@ -25,85 +35,77 @@ namespace GetNomenclatureConsoleApp
                         "Authorization", 
                         "Bearer " + await AuthenticateAsync(httpClient, new { Login = "demo", Password = "demo" }));
 
-                    // - Get first (any) user department  
-                    User user = await GetUserAnyDepartment(httpClient);
+                    // - Get user departments  
+                    var users = await GetUserAnyDepartment(httpClient);
 
-                    //if (user.Departments == null)
-                    //{
-                    //    Console.WriteLine("Department not specified");
-                    //    Console.WriteLine();
-                    //}
-                    //else
-                    //{
-                    //    var nomenclatureList = await GetNomenclature(httpClient, user.Departments.FirstOrDefault()?.Id);
-                    //}
-
-
-
+                    foreach (var user in users)
+                    {
+                        var selectedDepartment = user?.Department;
+                        if (selectedDepartment == null)
+                        {
+                            Console.WriteLine($"User departament {user?.Department?.Name} not specified");
+                            Console.WriteLine();
+                        }
+                        else
+                        {
+                            var nomenclatureList = await GetNomenclature(httpClient, selectedDepartment.Id);
+                            var fileName = SaveToFile(selectedDepartment, nomenclatureList);
+                            Console.WriteLine($"User departament {user?.Department?.Name} nomenclature saved to {fileName}");
+                            Console.WriteLine();
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine(e.Message);
                 }
-
-
-
-
             }
-
-
-
-
-            //foreach (var dept in departments) {
-            //    Console.WriteLine($"{dept.Id} - {dept.Name}");
-
-            //    var nomenclatureList = await GetNomenclature(dept.Id);
-            //}
-
-
-
-
-
-
 
             Console.WriteLine("Enter for continue");
             Console.ReadKey();
         }
 
 
-        private static async Task<string> AuthenticateAsync(HttpClient httpClient, object auth)
+        private static string SaveToFile(Department selectedDepartment, List<Goods>? nomenclatureList)
         {
-            var response = await httpClient.PostAsJsonAsync(@"/User/auth/F3bus", auth);
-            TokenResponse? token = await response.Content.ReadFromJsonAsync<TokenResponse>();
-            return token.Token;
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,  "Nomenclatures");
+            var filePath = Path.Combine(path, $"nomenclature_{selectedDepartment.Id}_{DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss-ffffff")}.json");
+            Directory.CreateDirectory(path);
+
+            string json = JsonConvert.SerializeObject(nomenclatureList, Formatting.Indented);
+            File.WriteAllText(filePath, json);
+            return filePath;
         }
 
 
 
-        private static async Task<Department[]> GetUserAnyDepartment(HttpClient httpClient)
+        private static async Task<string?> AuthenticateAsync(HttpClient httpClient, object auth)
         {
-            User? user = null;
+            var response = await httpClient.PostAsJsonAsync(@"/User/auth/F3bus", auth);
+            TokenResponse? token = await response.Content.ReadFromJsonAsync<TokenResponse>();
+            return token?.Token;
+        }
+
+
+
+        private static async Task<List<User>> GetUserAnyDepartment(HttpClient httpClient)
+        {
+            List<User>? users = null;
             using (var response = await httpClient.GetAsync(@"/user/departments"))
             {
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
-                user = JsonConvert.DeserializeObject<User>(json);
+                users = JsonConvert.DeserializeObject<List<User>>(json);
             }
-
-
-            //IEnumerable<Department>? departaments = await httpClient.GetFromJsonAsync<List<Department>?>(@"/user/departments");
-            return user?.Departments == null 
-                ? new Department[0]
-                : user.Departments;
+            return users;
         }
 
 
 
-        private static async Task<Goods?> GetNomenclature(HttpClient httpClient, string id)
+        private static async Task<List<Goods>?> GetNomenclature(HttpClient httpClient, string id)
         {
             var nomenclatureList = await httpClient.GetFromJsonAsync<List<Goods>>(string.Format(@"/goods/{0}", id));
-
-            return null;
+            return nomenclatureList;
         }
 
     }

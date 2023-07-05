@@ -20,8 +20,6 @@ namespace GetNomenclatureConsoleApp
     {
         static async Task Main(string[] args)
         {
-            //User user = new User() { Login = "demo", Password = "demo" };
-
             using (HttpClient httpClient = new HttpClient())
             {
                 httpClient.BaseAddress = new Uri("http://f3bus.test.pharmadata.ru/");
@@ -64,6 +62,7 @@ namespace GetNomenclatureConsoleApp
             Console.WriteLine("Enter for continue");
             Console.ReadKey();
         }
+
 
 
         private static string SaveToFile(Department selectedDepartment, List<Goods>? nomenclatureList)
